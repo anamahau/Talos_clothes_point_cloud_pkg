@@ -4,6 +4,9 @@ import cv2 as cv
 import numpy as np
 import open3d as o3d
 
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
 import copy
 import math
 import rospy
@@ -17,7 +20,53 @@ from geometry_msgs.msg import Polygon, Point32
 from tf_reader import getTfTransform
 
 
+<<<<<<< HEAD
 def pointcloud2_to_xyz_array(cloud_msg, iteration, maxZ=math.inf):
+=======
+def save_point_cloud_plot(o3d_pc, output_path="point_cloud.png",
+                          title="Point Cloud",
+                          point_size=1,
+                          dpi=300):
+    """
+    Save an Open3D point cloud as a Matplotlib 3D image.
+
+    Parameters:
+    - o3d_pc: open3d.geometry.PointCloud
+    - output_path: file path to save image
+    - title: plot title
+    - point_size: scatter point size
+    - dpi: image resolution
+    """
+
+    points = np.asarray(o3d_pc.points)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Use colors if available
+    if o3d_pc.has_colors():
+        colors = np.asarray(o3d_pc.colors)
+        ax.scatter(points[:, 0], points[:, 1], points[:, 2],
+                   c=colors, s=point_size)
+    else:
+        ax.scatter(points[:, 0], points[:, 1], points[:, 2],
+                   s=point_size)
+
+    ax.set_title(title)
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+
+    ax.view_init(elev=30, azim=45)
+    ax.set_box_aspect([1, 1, 1])
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=dpi, bbox_inches='tight')
+    plt.close(fig)  # Important: prevents displaying window & frees memory
+
+
+def pointcloud2_to_xyz_array(cloud_msg, maxZ=math.inf):
+>>>>>>> 19adc64b7568197ad993f238a8e8be225405b085
     '''
     Convert a ROS PointCloud2 message to a Nx3 NumPy array
     '''
@@ -111,13 +160,31 @@ def PCanalysis(iteration):
     o3dPC_2 = create_open3d_cloud(xyz_array_2, rgb_array_2)
     # axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1, origin=o3dPC_2.get_center())
     axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1)
-    o3d.visualization.draw_geometries([o3dPC_2, axis], 'Cropped Point Cloud')
+    # o3d.visualization.draw_geometries([o3dPC_2, axis], 'Cropped Point Cloud')
 
+<<<<<<< HEAD
     if iteration == 1:
         plane_model, inliers = o3dPC_2.segment_plane(distance_threshold=0.001, ransac_n=3, num_iterations=1000)
         o3dPC_2 = color_pc(o3dPC_2, inliers, np.array([1, 0.6, 0]))
         print('plane model:', plane_model)
         o3d.visualization.draw_geometries([o3dPC_2, axis], 'Plane segmentation')
+=======
+    if True:
+        # x = pc.data[:4]
+        # y = pc.data[4:8]
+        # z = pc.data[8:12]
+        # print('point x:', struct.unpack('<f', x)[0])
+        # print('point y:', struct.unpack('<f', y)[0])
+        # print('point z:', struct.unpack('<f', z)[0])
+
+        plane_model, inliers = o3dPC_2.segment_plane(distance_threshold=0.01, ransac_n=3, num_iterations=1000)
+        o3dPC_2 = color_pc(o3dPC_2, inliers, np.array([1, 0.6, 0]))
+        print('plane model:', plane_model)
+        # o3d.visualization.draw_geometries([o3dPC_2], 'Plane segmentation')
+        save_point_cloud_plot(o3dPC_2, 
+                      output_path="plane_segmentation.png",
+                      title="Plane Segmentation")
+>>>>>>> 19adc64b7568197ad993f238a8e8be225405b085
 
         points = np.array(o3dPC_2.points)
         mask_plane = np.zeros(len(points), dtype=bool)
@@ -127,13 +194,26 @@ def PCanalysis(iteration):
         indexesUp = mask_above & ~mask_plane
         
         twoColorPC = color_pc(o3dPC_2, indexesUp, np.array([1, 0, 1]))
-        o3d.visualization.draw_geometries([twoColorPC, axis], '2 colors PC')
+        # o3d.visualization.draw_geometries([twoColorPC, axis], '2 colors PC')
+        save_point_cloud_plot(twoColorPC, 
+                      output_path="2_colors_PC.png",
+                      title="2 colors PC")
 
         objectsPC = remove_points(twoColorPC, indexesUp)
+<<<<<<< HEAD
         # o3d.visualization.draw_geometries([objectsPC, axis], 'Objects')
+=======
+        # o3d.visualization.draw_geometries([objectsPC], 'Objects')
+        save_point_cloud_plot(objectsPC, 
+                      output_path="Objects.png",
+                      title="Objects")
+>>>>>>> 19adc64b7568197ad993f238a8e8be225405b085
 
         LHpc, highPC, lowPC = findLowHigh(objectsPC)
-        o3d.visualization.draw_geometries([LHpc, axis], '2 points')
+        # o3d.visualization.draw_geometries([LHpc, axis], '2 points')
+        save_point_cloud_plot(LHpc, 
+                      output_path="2 points.png",
+                      title="2 points")
     
     elif iteration == 2:
         LHpc, highPC, lowPC = findLowHigh(o3dPC_2)
