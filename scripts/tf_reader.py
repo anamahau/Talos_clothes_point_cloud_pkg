@@ -66,8 +66,8 @@ def getTfTransform(firstLink, secondLink, returnMatrix=True):
         firstLink,
         secondLink,
         rospy.Time(0),
-        rospy.Duration(1.0),
-        rospy.Duration(1.0)
+        rospy.Duration(1.0)# ,
+        # rospy.Duration(1.0)
     )
     translation = current_transform.transform.translation
     rotation = current_transform.transform.rotation

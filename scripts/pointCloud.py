@@ -20,9 +20,6 @@ from geometry_msgs.msg import Polygon, Point32
 from tf_reader import getTfTransform
 
 
-<<<<<<< HEAD
-def pointcloud2_to_xyz_array(cloud_msg, iteration, maxZ=math.inf):
-=======
 def save_point_cloud_plot(o3d_pc, output_path="point_cloud.png",
                           title="Point Cloud",
                           point_size=1,
@@ -65,8 +62,7 @@ def save_point_cloud_plot(o3d_pc, output_path="point_cloud.png",
     plt.close(fig)  # Important: prevents displaying window & frees memory
 
 
-def pointcloud2_to_xyz_array(cloud_msg, maxZ=math.inf):
->>>>>>> 19adc64b7568197ad993f238a8e8be225405b085
+def pointcloud2_to_xyz_array(cloud_msg, iteration, maxZ=math.inf):
     '''
     Convert a ROS PointCloud2 message to a Nx3 NumPy array
     '''
@@ -162,20 +158,7 @@ def PCanalysis(iteration):
     axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1)
     # o3d.visualization.draw_geometries([o3dPC_2, axis], 'Cropped Point Cloud')
 
-<<<<<<< HEAD
     if iteration == 1:
-        plane_model, inliers = o3dPC_2.segment_plane(distance_threshold=0.001, ransac_n=3, num_iterations=1000)
-        o3dPC_2 = color_pc(o3dPC_2, inliers, np.array([1, 0.6, 0]))
-        print('plane model:', plane_model)
-        o3d.visualization.draw_geometries([o3dPC_2, axis], 'Plane segmentation')
-=======
-    if True:
-        # x = pc.data[:4]
-        # y = pc.data[4:8]
-        # z = pc.data[8:12]
-        # print('point x:', struct.unpack('<f', x)[0])
-        # print('point y:', struct.unpack('<f', y)[0])
-        # print('point z:', struct.unpack('<f', z)[0])
 
         plane_model, inliers = o3dPC_2.segment_plane(distance_threshold=0.01, ransac_n=3, num_iterations=1000)
         o3dPC_2 = color_pc(o3dPC_2, inliers, np.array([1, 0.6, 0]))
@@ -184,7 +167,6 @@ def PCanalysis(iteration):
         save_point_cloud_plot(o3dPC_2, 
                       output_path="plane_segmentation.png",
                       title="Plane Segmentation")
->>>>>>> 19adc64b7568197ad993f238a8e8be225405b085
 
         points = np.array(o3dPC_2.points)
         mask_plane = np.zeros(len(points), dtype=bool)
@@ -200,14 +182,10 @@ def PCanalysis(iteration):
                       title="2 colors PC")
 
         objectsPC = remove_points(twoColorPC, indexesUp)
-<<<<<<< HEAD
-        # o3d.visualization.draw_geometries([objectsPC, axis], 'Objects')
-=======
         # o3d.visualization.draw_geometries([objectsPC], 'Objects')
         save_point_cloud_plot(objectsPC, 
                       output_path="Objects.png",
                       title="Objects")
->>>>>>> 19adc64b7568197ad993f238a8e8be225405b085
 
         LHpc, highPC, lowPC = findLowHigh(objectsPC)
         # o3d.visualization.draw_geometries([LHpc, axis], '2 points')
@@ -217,7 +195,9 @@ def PCanalysis(iteration):
     
     elif iteration == 2:
         LHpc, highPC, lowPC = findLowHigh(o3dPC_2)
-        o3d.visualization.draw_geometries([LHpc, axis], '2 points')
+        save_point_cloud_plot(LHpc, 
+                      output_path="2 points.png",
+                      title="2 points")
     
     print('========== publisher 1')
     if iteration == 1:
