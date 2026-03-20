@@ -11,79 +11,32 @@ import struct
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 from point_cloud.msg import highLowPoint
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Int32, Float32MultiArray
 from geometry_msgs.msg import Polygon, Point32
 
 from tf_reader import getTfTransform
 
 
-def pointcloud2_to_xyz_array(cloud_msg, maxZ=math.inf):
+def pointcloud2_to_xyz_array(cloud_msg, iteration, maxZ=math.inf):
     '''
     Convert a ROS PointCloud2 message to a Nx3 NumPy array
     '''
+    print('Hello from pointcloud2_to_xyz_array :)')
+    print('iteration ', iteration)
     points = []
-    # jointValue = 0.78
-    jointValue = 0.35
-    R_cs = np.array([
-        [ math.cos(jointValue), 0, math.sin(jointValue), 0],
-        [                    0, 1,                    0, 0],
-        [-math.sin(jointValue), 1, math.cos(jointValue), 0],
-        [                    0, 0,                    0, 1]
-    ])
-    R_tf = getTfTransform('base_link', 'head_2_link')
-    R_tf2 = getTfTransform('base_link', 'rgbd_link')
-    R_tf3 = getTfTransform('head_2_link', 'base_link')
-    R_tf4 = getTfTransform('base_link', 'rgbd_depth_optical_frame')
-    R_rot = np.array([
-        [ 0,  0, 1, 0],
-        [-1,  0, 0, 0],
-        [ 0, -1, 0, 0],
-        [ 0,  0, 0, 1]
-    ])
-    R_rot2 = np.array([
-        [0,  0, 1, 0],
-        [0, -1, 0, 0],
-        [1,  0, 0, 0],
-        [0,  0, 0, 1]
-    ])
-    R_rot3 = np.array([
-        [ 0, 1, 0, 0],
-        [-1, 0, 0, 0],
-        [ 0, 0, 1, 0],
-        [ 0, 0, 0, 1]
-    ])
-    R_rot4 = np.array([
-        [-1,  0, 0, 0],
-        [ 0, -1, 0, 0],
-        [ 0,  0, 1, 0],
-        [ 0,  0, 0, 1]
-    ])
-    # R = R_rot2 @ (R_tf @ R_rot)
-    R = R_tf4
+    R = getTfTransform('base_link', 'rgbd_depth_optical_frame')
     print('========== R matrix:')
     print(R)
-    print(R[0,3], R[1,3], R[2,3])
-    printOnce = True
-    for p in pc2.read_points(cloud_msg, field_names=('x', 'y', 'z'), skip_nans=True):
-        if p[2] < maxZ:
-            R_xyz = np.transpose(np.array([p[0], p[1], p[2], 1])) @ R
-            R_xyz4 = R @ np.array([p[0], p[1], p[2], 1])
-            R_xyz2 = R[:3, :3] @ np.array([p[0], p[1], p[2]])
-            R_xyz3 = R[:3, :3] @ np.array([p[0], p[1], p[2]]) + R[:3, 3]
-            if printOnce:
-                print('========================================')
-                print(p[0], p[1], p[2])
-                print(R_xyz[0], R_xyz[1], R_xyz[2])
-                print(R_xyz2[0], R_xyz2[1], R_xyz2[2])
-                print(R_xyz3[0], R_xyz3[1], R_xyz3[2])
-                print('========================================')
-                printOnce = False
-            # points.append([R_xyz[0], R_xyz[1], R_xyz[2]])
-            # points.append([R_xyz2[0], R_xyz2[1], R_xyz2[2]])
-            # points.append([R_xyz3[0], R_xyz3[1], R_xyz3[2]])
-            points.append([R_xyz4[0], R_xyz4[1], R_xyz4[2]])
-            # points.append([p[0], p[1], p[2]])
-            # points.append([p[0]+R[0,3], p[1]+R[1,3], p[2]+R[2,3]])
+    if iteration == 1:
+        for p in pc2.read_points(cloud_msg, field_names=('x', 'y', 'z'), skip_nans=True):
+            R_xyz = R @ np.array([p[0], p[1], p[2], 1])
+            if R_xyz[2] < maxZ:
+                points.append([R_xyz[0], R_xyz[1], R_xyz[2]])
+    elif iteration == 2:
+        for p in pc2.read_points(cloud_msg, field_names=('x', 'y', 'z'), skip_nans=True):
+            R_xyz = R @ np.array([p[0], p[1], p[2], 1])
+            if (R_xyz[2] < maxZ and R_xyz[1] < -0.1):
+                points.append([R_xyz[0], R_xyz[1], R_xyz[2]])
     return np.array(points)
 
 def create_open3d_cloud(xyz_array, rgb_array):
@@ -139,44 +92,32 @@ def publishLowHigh(low, high):
     print('========== publisher 2')
 
 run_analysis = False
+iteration_data = 0
 
 def trigger_cb(msg):
     print('Hello from trigger_cb :)')
     global run_analysis
-    run_analysis = msg.data
+    global iteration_data
+    run_analysis = True
+    iteration_data = msg.data
 
-def PCanalysis():
+def PCanalysis(iteration):
     print('Hello from PCanalysis :)')
+    print('number ', iteration)
     pc = rospy.wait_for_message('/rgbd/depth/points', PointCloud2)
-    # pc = rospy.wait_for_message('/camera/depth_registered/points', PointCloud2)
-    # rospy.loginfo('PointCloud2 received: width=%d height=%d' %(pc.width, pc.height))
 
-    # rospy.loginfo('Number of points: %d' %(len(pc.data)/pc.point_step))
-
-    # xyz_array = pointcloud2_to_xyz_array(pc)
-    # rgb_array = np.zeros_like(xyz_array)
-    # o3dPC = create_open3d_cloud(xyz_array, rgb_array)
-    # o3d.visualization.draw_geometries([o3dPC], 'Point Cloud')
-
-    xyz_array_2 = pointcloud2_to_xyz_array(pc, maxZ=2)
+    xyz_array_2 = pointcloud2_to_xyz_array(pc, iteration=iteration, maxZ=2)
     rgb_array_2 = np.zeros_like(xyz_array_2)
     o3dPC_2 = create_open3d_cloud(xyz_array_2, rgb_array_2)
     # axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1, origin=o3dPC_2.get_center())
     axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1)
     o3d.visualization.draw_geometries([o3dPC_2, axis], 'Cropped Point Cloud')
 
-    if True:
-        # x = pc.data[:4]
-        # y = pc.data[4:8]
-        # z = pc.data[8:12]
-        # print('point x:', struct.unpack('<f', x)[0])
-        # print('point y:', struct.unpack('<f', y)[0])
-        # print('point z:', struct.unpack('<f', z)[0])
-
+    if iteration == 1:
         plane_model, inliers = o3dPC_2.segment_plane(distance_threshold=0.001, ransac_n=3, num_iterations=1000)
         o3dPC_2 = color_pc(o3dPC_2, inliers, np.array([1, 0.6, 0]))
         print('plane model:', plane_model)
-        o3d.visualization.draw_geometries([o3dPC_2], 'Plane segmentation')
+        o3d.visualization.draw_geometries([o3dPC_2, axis], 'Plane segmentation')
 
         points = np.array(o3dPC_2.points)
         mask_plane = np.zeros(len(points), dtype=bool)
@@ -189,29 +130,49 @@ def PCanalysis():
         o3d.visualization.draw_geometries([twoColorPC, axis], '2 colors PC')
 
         objectsPC = remove_points(twoColorPC, indexesUp)
-        o3d.visualization.draw_geometries([objectsPC], 'Objects')
+        # o3d.visualization.draw_geometries([objectsPC, axis], 'Objects')
 
         LHpc, highPC, lowPC = findLowHigh(objectsPC)
         o3d.visualization.draw_geometries([LHpc, axis], '2 points')
     
+    elif iteration == 2:
+        LHpc, highPC, lowPC = findLowHigh(o3dPC_2)
+        o3d.visualization.draw_geometries([LHpc, axis], '2 points')
+    
     print('========== publisher 1')
-    pub = rospy.Publisher('/highLowPCpoints_new', Polygon, queue_size=10, latch=True)
-    while rospy.Time.now().to_sec() == 0:
-        rospy.sleep(0.1)
-    rospy.sleep(0.5)
-    msg_old = highLowPoint()
-    msg = Polygon()
-    pH = Point32()
-    pL = Point32()
-    pH.x = highPC[0]
-    pH.y = highPC[1]
-    pH.z = highPC[2]
-    pL.x = lowPC[0]
-    pL.y = lowPC[1]
-    pL.z = lowPC[2]
-    msg.points.append(pH)
-    msg.points.append(pL)
-    pub.publish(msg)
+    if iteration == 1:
+        pub = rospy.Publisher('/highPCpoint', Float32MultiArray, queue_size=10, latch=True)
+        while rospy.Time.now().to_sec() == 0:
+            rospy.sleep(0.1)
+        rospy.sleep(0.5)
+        hPC = Float32MultiArray()
+        hPC.data = highPC
+        pub.publish(hPC)
+    elif iteration == 2:
+        pub = rospy.Publisher('/lowPCpoint', Float32MultiArray, queue_size=10, latch=True)
+        while rospy.Time.now().to_sec() == 0:
+            rospy.sleep(0.1)
+        rospy.sleep(0.5)
+        lPC = Float32MultiArray()
+        lPC.data = lowPC
+        pub.publish(lPC)
+    # pub = rospy.Publisher('/highLowPCpoints_new', Polygon, queue_size=10, latch=True)
+    # while rospy.Time.now().to_sec() == 0:
+    #     rospy.sleep(0.1)
+    # rospy.sleep(0.5)
+    # msg_old = highLowPoint()
+    # msg = Polygon()
+    # pH = Point32()
+    # pL = Point32()
+    # pH.x = highPC[0]
+    # pH.y = highPC[1]
+    # pH.z = highPC[2]
+    # pL.x = lowPC[0]
+    # pL.y = lowPC[1]
+    # pL.z = lowPC[2]
+    # msg.points.append(pH)
+    # msg.points.append(pL)
+    # pub.publish(msg)
     # msg.highestPoint = highPC
     # msg.lowestPoint = lowPC
     # pub.publish(msg)
@@ -224,19 +185,24 @@ if __name__ == '__main__':
     rospy.init_node('pointCloud', anonymous=True)
     pub_old = rospy.Publisher('/highLowPCpoints', highLowPoint, queue_size=1, latch=True)
 
-    rospy.Subscriber('/PCrequest', Bool, trigger_cb)
+    rospy.Subscriber('/PCrequest', Int32, trigger_cb)
 
     print(':)')
 
     # for i in range(2):
-    for i in range(1):
-        run_analysis = False
+    # for i in range(1):
+    #     run_analysis = 0
 
-        rate = rospy.Rate(10)
-        while not rospy.is_shutdown() and not run_analysis:
-            rate.sleep()
+    #     rate = rospy.Rate(10)
+    #     while not rospy.is_shutdown() and not run_analysis:
+    #         rate.sleep()
 
-        PCanalysis()
+    #     PCanalysis(run_analysis)
+
+    rate = rospy.Rate(10)
+    while not rospy.is_shutdown() and not run_analysis:
+        rate.sleep()
+    PCanalysis(iteration_data)
 
     '''
     point cloud je zapisan kot 2D array, kjer ima vsaka tocka 6 vrednosti [x, y, z, r, g, b]
