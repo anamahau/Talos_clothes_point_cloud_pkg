@@ -3,6 +3,7 @@
 import numpy as np
 import open3d as o3d
 import rospy
+import math
 
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Int32, Float32MultiArray
@@ -15,27 +16,90 @@ from tf_reader import getTfTransform
 
 MAX_X1 = 2.0
 MAX_X2 = 1.5
+MAX_Y1 = math.inf
+MAX_Y2 = math.inf
+MAX_Z1 = math.inf
+MAX_Z2 = math.inf
 # MAX_Y = -0.1
 # MAX_Z = 2.0
 PLOT = False   # turn OFF for speed
+VISUALIZE = False
+
+# =====================
+# VISUALIZATION
+# =====================
+
+def visualize_cloud(points, high=None, low=None, show_extremes=True):
+    geometries = []
+
+    # Point cloud
+    pc = o3d.geometry.PointCloud()
+    print("shape:", points.shape)
+    print("dtype:", points.dtype)
+    print("example:", points[:5])
+    pc.points = o3d.utility.Vector3dVector(points)
+    pc.paint_uniform_color([0.7, 0.7, 0.7])
+    geometries.append(pc)
+
+    # Optionally add extreme points
+    if show_extremes:
+        if high is not None:
+            high_sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.02)
+            high_sphere.translate(high)
+            high_sphere.paint_uniform_color([1, 0, 0])
+            geometries.append(high_sphere)
+
+        if low is not None:
+            low_sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.02)
+            low_sphere.translate(low)
+            low_sphere.paint_uniform_color([0, 0, 1])
+            geometries.append(low_sphere)
+
+    axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1)
+    geometries.append(axis)
+
+    # Visualize
+    o3d.visualization.draw_geometries(
+        geometries,
+        window_name='Point Cloud Visualization'
+    )
 
 # =====================
 # FAST PointCloud2 → NumPy
 # =====================
 
 def pointcloud2_to_xyz_fast(cloud_msg):
-    '''Convert PointCloud2 → Nx3 NumPy array (FAST)'''
-    dtype = np.dtype([
-        ('x', np.float32),
-        ('y', np.float32),
-        ('z', np.float32)
-    ])
+    import numpy as np
 
-    cloud_arr = np.frombuffer(cloud_msg.data, dtype=dtype)
+    point_step = cloud_msg.point_step
+    data = cloud_msg.data
+    n_points = len(data) // point_step
 
-    xyz = np.vstack((cloud_arr['x'], cloud_arr['y'], cloud_arr['z'])).T
+    xyz = np.empty((n_points, 3), dtype=np.float32)
 
-    # Remove NaNs
+    for i in range(n_points):
+        offset = i * point_step
+        xyz[i, 0] = np.frombuffer(data, dtype=np.float32, count=1, offset=offset)[0]
+        xyz[i, 1] = np.frombuffer(data, dtype=np.float32, count=1, offset=offset+4)[0]
+        xyz[i, 2] = np.frombuffer(data, dtype=np.float32, count=1, offset=offset+8)[0]
+
+    mask = np.isfinite(xyz).all(axis=1)
+    return xyz[mask]
+
+def pointcloud2_to_xyz_fast_faster(cloud_msg):
+    import numpy as np
+
+    point_step = cloud_msg.point_step
+    raw = np.frombuffer(cloud_msg.data, dtype=np.uint8)
+
+    points = raw.reshape(-1, point_step)
+
+    xyz = np.zeros((points.shape[0], 3), dtype=np.float32)
+
+    xyz[:, 0] = points[:, 0:4].view(np.float32).flatten()
+    xyz[:, 1] = points[:, 4:8].view(np.float32).flatten()
+    xyz[:, 2] = points[:, 8:12].view(np.float32).flatten()
+
     mask = np.isfinite(xyz).all(axis=1)
     return xyz[mask]
 
@@ -110,11 +174,11 @@ class PCAnalyzer:
         '''Apply iteration-specific filtering'''
         if self.iteration == 1:
             # return xyz[xyz[:, 2] < MAX_Z]
-            return xyz[xyz[:, 0] < MAX_X1]
+            return xyz[(xyz[:, 0] < MAX_X1) & (xyz[:, 1] < MAX_Y1) & (xyz[:, 2] < MAX_Z1)]
 
         elif self.iteration == 2:
             # return xyz[(xyz[:, 2] < MAX_Z) & (xyz[:, 1] < MAX_Y)]
-            return xyz[xyz[:, ] < MAX_X2]
+            return xyz[(xyz[:, 0] < MAX_X2) & (xyz[:, 1] < MAX_Y2) & (xyz[:, 2] < MAX_Z2)]
 
         return xyz
 
@@ -163,11 +227,17 @@ class PCAnalyzer:
 
             high, low = find_low_high(objects)
 
+            if VISUALIZE:
+                visualize_cloud(objects, high, low)
+
         # =====================
         # ITERATION 2
         # =====================
         elif self.iteration == 2:
             high, low = find_low_high(xyz)
+
+            if VISUALIZE:
+                visualize_cloud(xyz, high, low)
 
         # =====================
         # Publish
