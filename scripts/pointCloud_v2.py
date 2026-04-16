@@ -22,7 +22,6 @@ MAX_Z1 = math.inf
 MAX_Z2 = math.inf
 # MAX_Y = -0.1
 # MAX_Z = 2.0
-PLOT = False   # turn OFF for speed
 VISUALIZE = False
 
 # =====================
